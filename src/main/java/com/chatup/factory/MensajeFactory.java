@@ -20,6 +20,11 @@ public final class MensajeFactory {
                     .remitente(remitenteId).destinatario(destinatarioId)
                     .contenido(texto.trim())
                     .build();
+            case RESPUESTA_AUTO -> Mensaje.builder()
+                    .tipo(TipoMensaje.RESPUESTA_AUTO)
+                    .remitente(remitenteId).destinatario(destinatarioId)
+                    .contenido(texto)
+                    .build();
             case ZUMBIDO -> Mensaje.builder()
                     .tipo(TipoMensaje.ZUMBIDO)
                     .remitente(remitenteId).destinatario(destinatarioId)

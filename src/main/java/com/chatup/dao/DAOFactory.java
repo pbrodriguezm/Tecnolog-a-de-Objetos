@@ -15,6 +15,8 @@ public abstract class DAOFactory {
 
     public abstract MensajeDAO getMensajeDAO();
 
+    public abstract RespuestaDAO getRespuestaDAO();
+
     public static DAOFactory getFactory(Motor motor) {
         return switch (motor) {
             case SQLITE -> new SQLiteDAOFactory();

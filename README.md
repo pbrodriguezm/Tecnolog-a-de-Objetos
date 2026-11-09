@@ -15,6 +15,7 @@ Aplicación de mensajería de escritorio (estilo WhatsApp, versión simple) desa
 - Lista de contactos con avatar, vista previa del último mensaje y contador de no leídos.
 - Chat con burbujas, hora y doble check ✓✓.
 - **Varias sesiones a la vez**: con el botón **+** se abre otra ventana con otro usuario y los mensajes llegan en tiempo real (patrón Observer).
+- **Respuestas automáticas**: al enviar un mensaje, el contacto "escribe…" y responde con una frase aleatoria guardada en la tabla `respuestas` de SQLite ("Creo que es cierto", "De acuerdo", "Puedo analizar lo que dices"…).
 - **Zumbido**: hace temblar la ventana del destinatario.
 - **Procesamiento de texto** elegible antes de enviar (patrón Strategy): Normal, Emoticonos (`:)` → ☺, `<3` → ♥), Censura y MAYÚSCULAS.
 - Cambiar el estado del perfil (✎) y vaciar un chat.
@@ -48,11 +49,11 @@ java -jar target/chatup-1.0-jar-with-dependencies.jar
 |---|---|---|---|
 | **Singleton** | Creacional | [`config/ConexionSQLite`](src/main/java/com/chatup/config/ConexionSQLite.java) | Una sola conexión a SQLite para toda la app; además crea las tablas. |
 | **Builder** | Creacional | [`modelo/Mensaje.Builder`](src/main/java/com/chatup/modelo/Mensaje.java) | Construir mensajes inmutables paso a paso y validar campos obligatorios. |
-| **Factory Method** | Creacional | [`factory/MensajeFactory`](src/main/java/com/chatup/factory/MensajeFactory.java) | Crear mensajes de tipo TEXTO, ZUMBIDO o SISTEMA sin que el cliente sepa cómo se arman. |
+| **Factory Method** | Creacional | [`factory/MensajeFactory`](src/main/java/com/chatup/factory/MensajeFactory.java) | Crear mensajes de tipo TEXTO, RESPUESTA_AUTO, ZUMBIDO o SISTEMA sin que el cliente sepa cómo se arman. |
 | **Abstract Factory** | Creacional | [`dao/DAOFactory`](src/main/java/com/chatup/dao/DAOFactory.java) → [`SQLiteDAOFactory`](src/main/java/com/chatup/dao/sqlite/SQLiteDAOFactory.java) | Crear la familia de DAOs; cambiar de motor de BD = otra fábrica concreta. |
-| **DAO** | Arquitectura / acceso a datos | [`dao/UsuarioDAO`](src/main/java/com/chatup/dao/UsuarioDAO.java), [`dao/MensajeDAO`](src/main/java/com/chatup/dao/MensajeDAO.java) y sus implementaciones en `dao/sqlite` | Separar el SQL de la lógica de negocio. |
+| **DAO** | Arquitectura / acceso a datos | [`dao/UsuarioDAO`](src/main/java/com/chatup/dao/UsuarioDAO.java), [`dao/MensajeDAO`](src/main/java/com/chatup/dao/MensajeDAO.java), [`dao/RespuestaDAO`](src/main/java/com/chatup/dao/RespuestaDAO.java) y sus implementaciones en `dao/sqlite` | Separar el SQL de la lógica de negocio. |
 | **Strategy** | Comportamiento | [`estrategia/ProcesadorTexto`](src/main/java/com/chatup/estrategia/ProcesadorTexto.java) + `TextoNormal`, `TextoEmoticonos`, `TextoCensurado`, `TextoMayusculas` | Algoritmos intercambiables para transformar el texto; se eligen en un combo de la GUI. |
-| **Observer** | Comportamiento | [`observador/ChatSubject`](src/main/java/com/chatup/observador/ChatSubject.java) (lo implementa `ChatFacade`) y [`ChatObserver`](src/main/java/com/chatup/observador/ChatObserver.java) (lo implementa `ChatFrame`) | Notificar en vivo a todas las ventanas abiertas cuando llega un mensaje. |
+| **Observer** | Comportamiento | [`observador/ChatSubject`](src/main/java/com/chatup/observador/ChatSubject.java) (lo implementa `ChatFacade`) y [`ChatObserver`](src/main/java/com/chatup/observador/ChatObserver.java) (lo implementan `ChatFrame` y [`RespuestaAutomatica`](src/main/java/com/chatup/servicio/RespuestaAutomatica.java)) | Notificar en vivo a todas las ventanas abiertas cuando llega un mensaje; el bot de respuestas es otro observador. |
 | **Facade** | Estructural | [`servicio/ChatFacade`](src/main/java/com/chatup/servicio/ChatFacade.java) | Interfaz simple para la GUI que oculta DAOs, fábricas, estrategias y el hash. |
 | **MVC** | Arquitectónico | `modelo/` · `vista/` · `controlador/` | Separar datos, interfaz y manejo de eventos. |
 
@@ -68,7 +69,7 @@ src/main/java/com/chatup/
 │   └── sqlite/               # implementaciones SQLite
 ├── estrategia/               # Strategy: procesadores de texto
 ├── observador/               # Observer: ChatSubject / ChatObserver
-├── servicio/                 # Facade: ChatFacade
+├── servicio/                 # Facade: ChatFacade · Observer: RespuestaAutomatica (bot)
 ├── controlador/              # MVC: LoginControlador, ChatControlador
 └── vista/                    # MVC: LoginFrame, ChatFrame, Burbuja, Avatar, Estilo
 ```
@@ -90,12 +91,17 @@ classDiagram
     class ProcesadorTexto {<<interface>>}
     class MensajeFactory
     class Mensaje
+    class RespuestaAutomatica
+    class RespuestaDAO {<<interface>>}
     class ConexionSQLite {<<singleton>>}
 
     ChatFrame ..|> ChatObserver
     ChatFrame --> ChatControlador
     ChatControlador --> ChatFacade
     ChatFacade ..|> ChatSubject
+    RespuestaAutomatica ..|> ChatObserver
+    RespuestaAutomatica --> ChatFacade : responde
+    DAOFactory ..> RespuestaDAO : crea
     ChatSubject --> ChatObserver : notifica
     ChatFacade --> DAOFactory
     SQLiteDAOFactory --|> DAOFactory
@@ -126,7 +132,13 @@ CREATE TABLE mensajes (
     remitente_id    INTEGER NOT NULL REFERENCES usuarios(id),
     destinatario_id INTEGER NOT NULL REFERENCES usuarios(id),
     contenido       TEXT NOT NULL,
-    tipo            TEXT NOT NULL,   -- TEXTO | ZUMBIDO | SISTEMA
+    tipo            TEXT NOT NULL,   -- TEXTO | RESPUESTA_AUTO | ZUMBIDO | SISTEMA
     fecha           TEXT NOT NULL    -- ISO-8601
+);
+
+-- Frases que usa el bot de respuestas automáticas (25 precargadas)
+CREATE TABLE respuestas (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    texto TEXT NOT NULL UNIQUE
 );
 ```

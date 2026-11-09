@@ -59,6 +59,11 @@ public final class ConexionSQLite {
                     tipo            TEXT NOT NULL,
                     fecha           TEXT NOT NULL
                 )""");
+            st.execute("""
+                CREATE TABLE IF NOT EXISTS respuestas (
+                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    texto TEXT NOT NULL UNIQUE
+                )""");
         }
     }
 

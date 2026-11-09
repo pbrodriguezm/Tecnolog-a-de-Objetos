@@ -2,6 +2,7 @@ package com.chatup.servicio;
 
 import com.chatup.dao.DAOFactory;
 import com.chatup.dao.MensajeDAO;
+import com.chatup.dao.RespuestaDAO;
 import com.chatup.dao.UsuarioDAO;
 import com.chatup.estrategia.ProcesadorTexto;
 import com.chatup.factory.MensajeFactory;
@@ -30,11 +31,13 @@ public class ChatFacade implements ChatSubject {
 
     private final UsuarioDAO usuarioDAO;
     private final MensajeDAO mensajeDAO;
+    private final RespuestaDAO respuestaDAO;
     private final List<ChatObserver> observadores = new CopyOnWriteArrayList<>();
 
     public ChatFacade(DAOFactory factory) {
         this.usuarioDAO = factory.getUsuarioDAO();
         this.mensajeDAO = factory.getMensajeDAO();
+        this.respuestaDAO = factory.getRespuestaDAO();
     }
 
     // ---------------------------------------------------------------- usuarios
@@ -94,6 +97,15 @@ public class ChatFacade implements ChatSubject {
         return guardarYNotificar(MensajeFactory.crear(TipoMensaje.ZUMBIDO, yo.getId(), otro.getId(), null));
     }
 
+    /**
+     * Responde en nombre de {@code remitenteId} con una frase aleatoria
+     * guardada en la tabla "respuestas" de SQLite.
+     */
+    public void responderAutomaticamente(int remitenteId, int destinatarioId) {
+        respuestaDAO.obtenerAleatoria().ifPresent(texto -> guardarYNotificar(
+                MensajeFactory.crear(TipoMensaje.RESPUESTA_AUTO, remitenteId, destinatarioId, texto)));
+    }
+
     public void vaciarChat(Usuario yo, Usuario otro) {
         mensajeDAO.eliminarConversacion(yo.getId(), otro.getId());
         notificar(MensajeFactory.crear(TipoMensaje.SISTEMA, yo.getId(), otro.getId(),
@@ -109,6 +121,7 @@ public class ChatFacade implements ChatSubject {
     // ---------------------------------------------------------------- datos demo
 
     public void sembrarDatosIniciales() {
+        sembrarRespuestas();
         if (usuarioDAO.contar() > 0) {
             return;
         }
@@ -119,6 +132,39 @@ public class ChatFacade implements ChatSubject {
                 "Hola Ana, ¿ya avanzaste el proyecto de Tecnología de Objetos?"));
         mensajeDAO.insertar(MensajeFactory.crear(TipoMensaje.TEXTO, ana.getId(), luis.getId(),
                 "¡Sí! Ya tengo los patrones de diseño ☺"));
+    }
+
+    private void sembrarRespuestas() {
+        if (respuestaDAO.contar() > 0) {
+            return;
+        }
+        List.of(
+                "Creo que es cierto",
+                "De acuerdo",
+                "Puedo analizar lo que dices",
+                "Mmm, déjame pensarlo",
+                "¡Totalmente!",
+                "No estoy tan seguro de eso",
+                "Jajaja, buenísimo",
+                "Interesante, cuéntame más",
+                "Ok, lo reviso y te aviso",
+                "Me parece bien",
+                "¿En serio? No lo sabía",
+                "Tienes toda la razón",
+                "Hablamos más tarde, estoy ocupado",
+                "Claro que sí",
+                "Eso suena genial",
+                "No lo había visto de esa forma",
+                "Dame un momento",
+                "Perfecto, gracias",
+                "¿Y tú qué opinas?",
+                "Lo vemos mañana en clase",
+                "Exacto, eso mismo pensaba",
+                "Hmm, puede ser",
+                "¡Qué buena idea!",
+                "Te entiendo perfectamente",
+                "Vale, anotado"
+        ).forEach(respuestaDAO::insertar);
     }
 
     // ---------------------------------------------------------------- Observer

@@ -270,6 +270,7 @@ public class ChatFrame extends JFrame implements ChatObserver {
         avatarContacto.setUsuario(c);
         lblContacto.setText(hay ? c.getNombre() : "Selecciona un chat");
         lblEstadoContacto.setText(hay ? c.getEstado() : "Tus mensajes se guardan en chatup.db (SQLite)");
+        lblEstadoContacto.setForeground(Estilo.GRIS_TEXTO);
         if (hay) {
             for (Mensaje m : facade.conversacion(yo, c)) {
                 panelMensajes.add(new Burbuja(m, m.getRemitenteId() == yo.getId()));
@@ -333,6 +334,14 @@ public class ChatFrame extends JFrame implements ChatObserver {
             bajarScroll();
         } else if (m.getRemitenteId() != yo.getId()) {
             noLeidos.merge(otroId, 1, Integer::sum);
+        }
+
+        if (abierto) {
+            boolean loEnvieYo = m.getRemitenteId() == yo.getId();
+            lblEstadoContacto.setText(loEnvieYo && m.getTipo() == TipoMensaje.TEXTO
+                    ? "escribiendo…" : otro.getEstado());
+            lblEstadoContacto.setForeground(lblEstadoContacto.getText().equals("escribiendo…")
+                    ? Estilo.VERDE : Estilo.GRIS_TEXTO);
         }
 
         actualizarVistaPrevia(otro);
