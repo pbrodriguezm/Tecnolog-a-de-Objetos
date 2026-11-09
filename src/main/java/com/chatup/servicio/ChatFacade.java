@@ -16,7 +16,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -33,6 +35,8 @@ public class ChatFacade implements ChatSubject {
     private final MensajeDAO mensajeDAO;
     private final RespuestaDAO respuestaDAO;
     private final List<ChatObserver> observadores = new CopyOnWriteArrayList<>();
+    /** usuarioId -> cantidad de ventanas abiertas de ese usuario. */
+    private final Map<Integer, Integer> sesiones = new ConcurrentHashMap<>();
 
     public ChatFacade(DAOFactory factory) {
         this.usuarioDAO = factory.getUsuarioDAO();
@@ -76,6 +80,25 @@ public class ChatFacade implements ChatSubject {
     public void cambiarEstado(Usuario yo, String estado) {
         usuarioDAO.actualizarEstado(yo.getId(), estado);
         yo.setEstado(estado);
+    }
+
+    // ---------------------------------------------------------------- presencia
+
+    public void conectar(Usuario u) {
+        if (sesiones.merge(u.getId(), 1, Integer::sum) == 1) {
+            observadores.forEach(o -> o.onPresenciaCambiada(u.getId(), true));
+        }
+    }
+
+    public void desconectar(Usuario u) {
+        Integer quedan = sesiones.computeIfPresent(u.getId(), (id, n) -> n > 1 ? n - 1 : null);
+        if (quedan == null) {
+            observadores.forEach(o -> o.onPresenciaCambiada(u.getId(), false));
+        }
+    }
+
+    public boolean estaConectado(int usuarioId) {
+        return sesiones.containsKey(usuarioId);
     }
 
     // ---------------------------------------------------------------- mensajes

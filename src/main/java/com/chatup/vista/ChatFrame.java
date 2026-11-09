@@ -87,11 +87,13 @@ public class ChatFrame extends JFrame implements ChatObserver {
         mostrarConversacion();
 
         facade.suscribir(this);
+        facade.conectar(yo);
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
                 facade.desuscribir(ChatFrame.this);
+                facade.desconectar(yo);
             }
 
             @Override
@@ -251,7 +253,8 @@ public class ChatFrame extends JFrame implements ChatObserver {
 
     private void actualizarVistaPrevia(Usuario contacto) {
         vistaPrevia.put(contacto.getId(), facade.ultimoMensaje(yo, contacto)
-                .map(m -> (m.getRemitenteId() == yo.getId() ? "Tú: " : "") + m.getContenido())
+                .map(m -> (m.getTipo() == TipoMensaje.RESPUESTA_AUTO ? "Bot: "
+                        : m.getRemitenteId() == yo.getId() ? "Tú: " : "") + m.getContenido())
                 .orElse(contacto.getEstado()));
     }
 
@@ -264,18 +267,53 @@ public class ChatFrame extends JFrame implements ChatObserver {
         btnVaciar.setVisible(hay);
         avatarContacto.setUsuario(c);
         lblContacto.setText(hay ? c.getNombre() : "Selecciona un chat");
-        lblEstadoContacto.setText(hay ? c.getEstado() : "Tus mensajes se guardan en chatup.db (SQLite)");
-        lblEstadoContacto.setForeground(Estilo.GRIS_TEXTO);
+        if (hay) {
+            mostrarPresencia(c);
+        } else {
+            lblEstadoContacto.setText("Tus mensajes se guardan en chatup.db (SQLite)");
+            lblEstadoContacto.setForeground(Estilo.GRIS_TEXTO);
+        }
         if (hay) {
             for (Mensaje m : facade.conversacion(yo, c)) {
                 mostrados.add(m.getId());
-                panelMensajes.add(new Burbuja(m, m.getRemitenteId() == yo.getId()));
+                panelMensajes.add(burbuja(m, c));
             }
             txtMensaje.requestFocusInWindow();
         }
         panelMensajes.revalidate();
         panelMensajes.repaint();
         bajarScroll();
+    }
+
+    /** Crea la burbuja con la firma: "Ana dice:" o "Bot dice:". */
+    private Burbuja burbuja(Mensaje m, Usuario contacto) {
+        boolean esMio = m.getRemitenteId() == yo.getId();
+        if (m.getTipo() == TipoMensaje.RESPUESTA_AUTO) {
+            return new Burbuja(m, esMio, "Bot", Estilo.BOT);
+        }
+        Usuario autor = esMio ? yo : contacto;
+        return new Burbuja(m, esMio, primerNombre(autor), Estilo.colorAvatar(autor.getId()));
+    }
+
+    private static String primerNombre(Usuario u) {
+        return u.getNombre().trim().split("\\s+")[0];
+    }
+
+    private void mostrarPresencia(Usuario c) {
+        boolean enLinea = facade.estaConectado(c.getId());
+        lblEstadoContacto.setText(enLinea ? "● en línea" : "desconectado · responde el bot");
+        lblEstadoContacto.setForeground(enLinea ? Estilo.VERDE : Estilo.GRIS_TEXTO);
+    }
+
+    @Override
+    public void onPresenciaCambiada(int usuarioId, boolean conectado) {
+        SwingUtilities.invokeLater(() -> {
+            Usuario actual = listaContactos.getSelectedValue();
+            if (actual != null && actual.getId() == usuarioId) {
+                mostrarPresencia(actual);
+            }
+            listaContactos.repaint();
+        });
     }
 
     private void bajarScroll() {
@@ -320,14 +358,14 @@ public class ChatFrame extends JFrame implements ChatObserver {
         if (m.getTipo() == TipoMensaje.SISTEMA) {
             if (abierto) {
                 mostrarConversacion();
-                panelMensajes.add(new Burbuja(m, false));
+                panelMensajes.add(new Burbuja(m, false, "", Color.GRAY));
                 panelMensajes.revalidate();
             }
         } else if (abierto) {
             if (!mostrados.add(m.getId())) {
                 return; // ya estaba en pantalla
             }
-            panelMensajes.add(new Burbuja(m, m.getRemitenteId() == yo.getId()));
+            panelMensajes.add(burbuja(m, otro));
             panelMensajes.revalidate();
             panelMensajes.repaint();
             bajarScroll();
@@ -336,11 +374,14 @@ public class ChatFrame extends JFrame implements ChatObserver {
         }
 
         if (abierto) {
-            boolean loEnvieYo = m.getRemitenteId() == yo.getId();
-            lblEstadoContacto.setText(loEnvieYo && m.getTipo() == TipoMensaje.TEXTO
-                    ? "escribiendo…" : otro.getEstado());
-            lblEstadoContacto.setForeground(lblEstadoContacto.getText().equals("escribiendo…")
-                    ? Estilo.VERDE : Estilo.GRIS_TEXTO);
+            boolean botVaAResponder = m.getRemitenteId() == yo.getId()
+                    && m.getTipo() == TipoMensaje.TEXTO && !facade.estaConectado(otroId);
+            if (botVaAResponder) {
+                lblEstadoContacto.setText("Bot escribiendo…");
+                lblEstadoContacto.setForeground(Estilo.BOT);
+            } else {
+                mostrarPresencia(otro);
+            }
         }
 
         actualizarVistaPrevia(otro);
@@ -425,7 +466,9 @@ public class ChatFrame extends JFrame implements ChatObserver {
         public Component getListCellRendererComponent(JList<? extends Usuario> list, Usuario u,
                                                       int index, boolean sel, boolean foco) {
             avatar.setUsuario(u);
-            nombre.setText(u.getNombre());
+            nombre.setText(facade.estaConectado(u.getId())
+                    ? "<html>" + u.getNombre() + " <font color='#00A884'>●</font></html>"
+                    : u.getNombre());
             String p = vistaPrevia.getOrDefault(u.getId(), "");
             previa.setText(p.length() > 34 ? p.substring(0, 34) + "…" : p);
             int n = noLeidos.getOrDefault(u.getId(), 0);

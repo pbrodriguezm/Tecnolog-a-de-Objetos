@@ -10,4 +10,8 @@ import com.chatup.modelo.Mensaje;
 public interface ChatObserver {
 
     void onMensajeNuevo(Mensaje mensaje);
+
+    /** Un usuario abrió o cerró su sesión (opcional para los observadores). */
+    default void onPresenciaCambiada(int usuarioId, boolean conectado) {
+    }
 }

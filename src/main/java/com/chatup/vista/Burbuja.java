@@ -16,7 +16,7 @@ import javax.swing.SwingConstants;
 /** Fila del chat con la burbuja de un mensaje (alineada según quién lo envió). */
 public class Burbuja extends JPanel {
 
-    public Burbuja(Mensaje m, boolean esMio) {
+    public Burbuja(Mensaje m, boolean esMio, String firma, Color colorFirma) {
         super(new FlowLayout(esMio ? FlowLayout.RIGHT : FlowLayout.LEFT, 12, 3));
         setOpaque(false);
 
@@ -37,7 +37,13 @@ public class Burbuja extends JPanel {
         hora.setForeground(esMio ? new Color(0x53BDEB) : Estilo.GRIS_TEXTO);
         hora.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        add(new Globo(esMio ? Estilo.BURBUJA_MIA : Estilo.BURBUJA_OTRO, texto, hora));
+        JLabel lblFirma = new JLabel(firma + " dice:");
+        lblFirma.setFont(Estilo.PEQUENA.deriveFont(java.awt.Font.BOLD));
+        lblFirma.setForeground(colorFirma);
+
+        Globo globo = new Globo(esMio ? Estilo.BURBUJA_MIA : Estilo.BURBUJA_OTRO, texto, hora);
+        globo.add(lblFirma, BorderLayout.NORTH);
+        add(globo);
     }
 
     private static JLabel etiqueta(String texto, java.awt.Font fuente, Color color) {

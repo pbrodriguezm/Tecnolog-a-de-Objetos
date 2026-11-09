@@ -12,8 +12,9 @@ import java.util.concurrent.TimeUnit;
  * PATRÓN OBSERVER (otro observador)
  * "Bot" que escucha los mensajes enviados y, tras una pequeña pausa
  * (simulando que el contacto escribe), responde con una frase aleatoria de la BD.
- * Sólo reacciona a mensajes TEXTO escritos por una persona, así nunca se
- * responde a sí mismo.
+ * Sólo reacciona a mensajes TEXTO escritos por una persona (nunca se responde
+ * a sí mismo) y SÓLO si el destinatario no está conectado: si la persona
+ * real tiene su ventana abierta, contesta ella.
  */
 public class RespuestaAutomatica implements ChatObserver {
 
@@ -30,12 +31,16 @@ public class RespuestaAutomatica implements ChatObserver {
 
     @Override
     public void onMensajeNuevo(Mensaje m) {
-        if (m.getTipo() != TipoMensaje.TEXTO) {
+        if (m.getTipo() != TipoMensaje.TEXTO || facade.estaConectado(m.getDestinatarioId())) {
             return;
         }
         long demora = ThreadLocalRandom.current().nextLong(1000, 2500);
         planificador.schedule(
-                () -> facade.responderAutomaticamente(m.getDestinatarioId(), m.getRemitenteId()),
+                () -> {
+                    if (!facade.estaConectado(m.getDestinatarioId())) { // se pudo conectar mientras "escribía"
+                        facade.responderAutomaticamente(m.getDestinatarioId(), m.getRemitenteId());
+                    }
+                },
                 demora, TimeUnit.MILLISECONDS);
     }
 }

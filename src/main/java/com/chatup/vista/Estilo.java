@@ -17,6 +17,7 @@ public final class Estilo {
     public static final Color GRIS_TEXTO = new Color(0x667781);
     public static final Color GRIS_CLARO = new Color(0xF0F2F5);
     public static final Color SELECCION = new Color(0xE9EDEF);
+    public static final Color BOT = new Color(0x7B61FF);
 
     public static final Font NORMAL = new Font("SansSerif", Font.PLAIN, 14);
     public static final Font NEGRITA = new Font("SansSerif", Font.BOLD, 14);
