@@ -17,7 +17,7 @@ Aplicación de mensajería de escritorio (estilo WhatsApp, versión simple) desa
 - **Varias sesiones a la vez**: con el botón **+** se abre otra ventana con otro usuario y los mensajes llegan en tiempo real (patrón Observer).
 - **Respuestas automáticas**: al enviar un mensaje, el contacto "escribe…" y responde con una frase aleatoria guardada en la tabla `respuestas` de SQLite ("Creo que es cierto", "De acuerdo", "Puedo analizar lo que dices"…).
 - **Zumbido**: hace temblar la ventana del destinatario.
-- **Procesamiento de texto** elegible antes de enviar (patrón Strategy): Normal, Emoticonos (`:)` → ☺, `<3` → ♥), Censura y MAYÚSCULAS.
+- **Barra de formato** tipo editor de texto (patrón Strategy): botones que se activan/desactivan y se pueden combinar: **☺** Emoticonos (`:)` → ☺, `<3` → ♥), **\*\*\*** Censura y **AA** MAYÚSCULAS. Sin ninguno activo se envía el texto normal.
 - Cambiar el estado del perfil (✎) y vaciar un chat.
 - Todo queda guardado en `chatup.db`.
 
@@ -52,7 +52,7 @@ java -jar target/chatup-1.0-jar-with-dependencies.jar
 | **Factory Method** | Creacional | [`factory/MensajeFactory`](src/main/java/com/chatup/factory/MensajeFactory.java) | Crear mensajes de tipo TEXTO, RESPUESTA_AUTO, ZUMBIDO o SISTEMA sin que el cliente sepa cómo se arman. |
 | **Abstract Factory** | Creacional | [`dao/DAOFactory`](src/main/java/com/chatup/dao/DAOFactory.java) → [`SQLiteDAOFactory`](src/main/java/com/chatup/dao/sqlite/SQLiteDAOFactory.java) | Crear la familia de DAOs; cambiar de motor de BD = otra fábrica concreta. |
 | **DAO** | Arquitectura / acceso a datos | [`dao/UsuarioDAO`](src/main/java/com/chatup/dao/UsuarioDAO.java), [`dao/MensajeDAO`](src/main/java/com/chatup/dao/MensajeDAO.java), [`dao/RespuestaDAO`](src/main/java/com/chatup/dao/RespuestaDAO.java) y sus implementaciones en `dao/sqlite` | Separar el SQL de la lógica de negocio. |
-| **Strategy** | Comportamiento | [`estrategia/ProcesadorTexto`](src/main/java/com/chatup/estrategia/ProcesadorTexto.java) + `TextoNormal`, `TextoEmoticonos`, `TextoCensurado`, `TextoMayusculas` | Algoritmos intercambiables para transformar el texto; se eligen en un combo de la GUI. |
+| **Strategy** | Comportamiento | [`estrategia/ProcesadorTexto`](src/main/java/com/chatup/estrategia/ProcesadorTexto.java) + `TextoNormal`, `TextoEmoticonos`, `TextoCensurado`, `TextoMayusculas` y [`ProcesadorCompuesto`](src/main/java/com/chatup/estrategia/ProcesadorCompuesto.java) | Algoritmos intercambiables para transformar el texto. Cada botón de la [`BarraEstrategias`](src/main/java/com/chatup/vista/BarraEstrategias.java) activa una estrategia; si hay varias activas se encadenan en un `ProcesadorCompuesto` (que también es un `ProcesadorTexto`), así el chat siempre recibe **una** estrategia. |
 | **Observer** | Comportamiento | [`observador/ChatSubject`](src/main/java/com/chatup/observador/ChatSubject.java) (lo implementa `ChatFacade`) y [`ChatObserver`](src/main/java/com/chatup/observador/ChatObserver.java) (lo implementan `ChatFrame` y [`RespuestaAutomatica`](src/main/java/com/chatup/servicio/RespuestaAutomatica.java)) | Notificar en vivo a todas las ventanas abiertas cuando llega un mensaje; el bot de respuestas es otro observador. |
 | **Facade** | Estructural | [`servicio/ChatFacade`](src/main/java/com/chatup/servicio/ChatFacade.java) | Interfaz simple para la GUI que oculta DAOs, fábricas, estrategias y el hash. |
 | **MVC** | Arquitectónico | `modelo/` · `vista/` · `controlador/` | Separar datos, interfaz y manejo de eventos. |
@@ -71,7 +71,7 @@ src/main/java/com/chatup/
 ├── observador/               # Observer: ChatSubject / ChatObserver
 ├── servicio/                 # Facade: ChatFacade · Observer: RespuestaAutomatica (bot)
 ├── controlador/              # MVC: LoginControlador, ChatControlador
-└── vista/                    # MVC: LoginFrame, ChatFrame, Burbuja, Avatar, Estilo
+└── vista/                    # MVC: LoginFrame, ChatFrame, BarraEstrategias, Burbuja, Avatar, Estilo
 ```
 
 ## Diagrama de clases (resumen)
@@ -89,6 +89,8 @@ classDiagram
     class UsuarioDAO {<<interface>>}
     class MensajeDAO {<<interface>>}
     class ProcesadorTexto {<<interface>>}
+    class ProcesadorCompuesto
+    class BarraEstrategias
     class MensajeFactory
     class Mensaje
     class RespuestaAutomatica
@@ -108,6 +110,10 @@ classDiagram
     DAOFactory ..> UsuarioDAO : crea
     DAOFactory ..> MensajeDAO : crea
     ChatFacade ..> ProcesadorTexto : usa
+    ProcesadorCompuesto ..|> ProcesadorTexto
+    ProcesadorCompuesto o--> ProcesadorTexto : encadena
+    BarraEstrategias ..> ProcesadorTexto : selecciona
+    ChatFrame --> BarraEstrategias
     ChatFacade ..> MensajeFactory : usa
     MensajeFactory ..> Mensaje : crea (Builder)
     UsuarioDAO ..> ConexionSQLite

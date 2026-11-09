@@ -1,11 +1,6 @@
 package com.chatup.vista;
 
 import com.chatup.controlador.ChatControlador;
-import com.chatup.estrategia.ProcesadorTexto;
-import com.chatup.estrategia.TextoCensurado;
-import com.chatup.estrategia.TextoEmoticonos;
-import com.chatup.estrategia.TextoMayusculas;
-import com.chatup.estrategia.TextoNormal;
 import com.chatup.modelo.Mensaje;
 import com.chatup.modelo.TipoMensaje;
 import com.chatup.modelo.Usuario;
@@ -21,13 +16,14 @@ import java.awt.Point;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
-import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -55,18 +51,19 @@ public class ChatFrame extends JFrame implements ChatObserver {
     private final JList<Usuario> listaContactos = new JList<>(modeloContactos);
     private final Map<Integer, Integer> noLeidos = new HashMap<>();
     private final Map<Integer, String> vistaPrevia = new HashMap<>();
+    /** ids de los mensajes ya dibujados en la conversación abierta (evita duplicados). */
+    private final Set<Integer> mostrados = new HashSet<>();
 
     private final JPanel panelMensajes = new JPanel();
     private final JScrollPane scrollMensajes;
     private final JTextField txtMensaje = new JTextField();
-    private final JComboBox<ProcesadorTexto> cboEstrategia = new JComboBox<>(new DefaultComboBoxModel<>(
-            new ProcesadorTexto[]{new TextoNormal(), new TextoEmoticonos(), new TextoCensurado(), new TextoMayusculas()}));
+    private final BarraEstrategias barraEstrategias = new BarraEstrategias();
 
     private final JLabel lblMiEstado = new JLabel();
     private final Avatar avatarContacto = new Avatar(null, 38);
     private final JLabel lblContacto = new JLabel("Selecciona un chat");
     private final JLabel lblEstadoContacto = new JLabel(" ");
-    private final JPanel panelEntrada = new JPanel(new BorderLayout(8, 0));
+    private final JPanel panelEntrada = new JPanel(new BorderLayout(0, 8));
     private final JButton btnVaciar = new JButton("Vaciar");
 
     public ChatFrame(ChatFacade facade, Usuario yo) {
@@ -189,16 +186,6 @@ public class ChatFrame extends JFrame implements ChatObserver {
 
         panelEntrada.setBackground(Estilo.GRIS_CLARO);
         panelEntrada.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        cboEstrategia.setToolTipText("Estrategia de procesamiento del texto (patrón Strategy)");
-        cboEstrategia.setRenderer((l, v, i, sel, foc) -> {
-            JLabel lbl = new JLabel(v == null ? "" : v.getNombre());
-            lbl.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
-            if (sel) {
-                lbl.setOpaque(true);
-                lbl.setBackground(Estilo.SELECCION);
-            }
-            return lbl;
-        });
         txtMensaje.setFont(Estilo.NORMAL);
         txtMensaje.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.WHITE, 1, true),
@@ -215,9 +202,12 @@ public class ChatFrame extends JFrame implements ChatObserver {
         derecha.setOpaque(false);
         derecha.add(btnZumbido);
         derecha.add(btnEnviar);
-        panelEntrada.add(cboEstrategia, BorderLayout.WEST);
-        panelEntrada.add(txtMensaje, BorderLayout.CENTER);
-        panelEntrada.add(derecha, BorderLayout.EAST);
+        JPanel fila = new JPanel(new BorderLayout(8, 0));
+        fila.setOpaque(false);
+        fila.add(txtMensaje, BorderLayout.CENTER);
+        fila.add(derecha, BorderLayout.EAST);
+        panelEntrada.add(barraEstrategias, BorderLayout.NORTH);
+        panelEntrada.add(fila, BorderLayout.CENTER);
 
         chat.add(cabecera, BorderLayout.NORTH);
         chat.add(scrollMensajes, BorderLayout.CENTER);
@@ -240,13 +230,17 @@ public class ChatFrame extends JFrame implements ChatObserver {
 
     private void enviar() {
         controlador.enviar(listaContactos.getSelectedValue(), txtMensaje.getText(),
-                (ProcesadorTexto) cboEstrategia.getSelectedItem());
+                barraEstrategias.getEstrategia());
     }
 
     private void cargarContactos() {
+        List<Usuario> contactos = facade.contactos(yo);
+        if (contactos.equals(java.util.Collections.list(modeloContactos.elements()))) {
+            return; // sin cambios: no se redibuja la conversación
+        }
         Usuario seleccionado = listaContactos.getSelectedValue();
         modeloContactos.clear();
-        for (Usuario u : facade.contactos(yo)) {
+        for (Usuario u : contactos) {
             modeloContactos.addElement(u);
             actualizarVistaPrevia(u);
         }
@@ -264,6 +258,7 @@ public class ChatFrame extends JFrame implements ChatObserver {
     private void mostrarConversacion() {
         Usuario c = listaContactos.getSelectedValue();
         panelMensajes.removeAll();
+        mostrados.clear();
         boolean hay = c != null;
         panelEntrada.setVisible(hay);
         btnVaciar.setVisible(hay);
@@ -273,6 +268,7 @@ public class ChatFrame extends JFrame implements ChatObserver {
         lblEstadoContacto.setForeground(Estilo.GRIS_TEXTO);
         if (hay) {
             for (Mensaje m : facade.conversacion(yo, c)) {
+                mostrados.add(m.getId());
                 panelMensajes.add(new Burbuja(m, m.getRemitenteId() == yo.getId()));
             }
             txtMensaje.requestFocusInWindow();
@@ -328,6 +324,9 @@ public class ChatFrame extends JFrame implements ChatObserver {
                 panelMensajes.revalidate();
             }
         } else if (abierto) {
+            if (!mostrados.add(m.getId())) {
+                return; // ya estaba en pantalla
+            }
             panelMensajes.add(new Burbuja(m, m.getRemitenteId() == yo.getId()));
             panelMensajes.revalidate();
             panelMensajes.repaint();
@@ -351,7 +350,7 @@ public class ChatFrame extends JFrame implements ChatObserver {
             temblar();
         }
     }
-
+ // esto no funciona por ahroa creo qiue la mac necesita mas permisos arreglarlo pronto
     private void temblar() {
         toFront();
         Point origen = getLocation();
