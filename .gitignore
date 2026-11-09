@@ -1,0 +1,18 @@
+# Compilados
+build/
+target/
+out/
+*.class
+
+# Dependencias descargadas por run.sh / run.bat
+lib/
+
+# Base de datos local (se crea al ejecutar)
+*.db
+
+# IDEs / SO
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+.DS_Store
