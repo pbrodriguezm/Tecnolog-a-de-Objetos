@@ -1,5 +1,6 @@
 package com.chatup.estrategia;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -17,6 +18,17 @@ public class TextoCensurado implements ProcesadorTexto {
                     .replaceAll("*".repeat(p.length()));
         }
         return r;
+    }
+
+    @Override
+    public List<String> detectarProhibidas(String texto) {
+        List<String> encontradas = new ArrayList<>();
+        for (String p : PROHIBIDAS) {
+            if (Pattern.compile("(?iu)\\b" + Pattern.quote(p) + "\\b").matcher(texto).find()) {
+                encontradas.add(p);
+            }
+        }
+        return encontradas;
     }
 
     @Override

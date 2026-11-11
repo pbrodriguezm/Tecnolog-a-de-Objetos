@@ -1,6 +1,7 @@
 package com.chatup.controlador;
 
 import com.chatup.estrategia.ProcesadorTexto;
+import java.util.List;
 import com.chatup.modelo.Usuario;
 import com.chatup.servicio.ChatFacade;
 import com.chatup.vista.ChatFrame;
@@ -26,6 +27,13 @@ public class ChatControlador {
         if (texto == null || texto.isBlank()) {
             return;
         }
+        
+        List<String> prohibidas = estrategia.detectarProhibidas(texto);
+        if (!prohibidas.isEmpty()) {
+            vista.mostrarError("EsTe. emensaje contiene palabras prohibidas: " + String.join(", ", prohibidas)
+                    + "\nSe enviará censurado.");
+        }
+        
         facade.enviarTexto(yo, contacto, texto, estrategia);
         vista.limpiarEntrada();
     }

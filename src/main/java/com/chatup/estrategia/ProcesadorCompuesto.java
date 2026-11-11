@@ -28,6 +28,14 @@ public class ProcesadorCompuesto implements ProcesadorTexto {
     }
 
     @Override
+    public List<String> detectarProhibidas(String texto) {
+        return estrategias.stream()
+                .flatMap(e -> e.detectarProhibidas(texto).stream())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public String getNombre() {
         return estrategias.stream().map(ProcesadorTexto::getNombre).collect(Collectors.joining(" + "));
     }
