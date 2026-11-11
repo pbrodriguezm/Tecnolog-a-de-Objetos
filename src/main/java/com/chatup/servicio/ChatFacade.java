@@ -38,6 +38,12 @@ public class ChatFacade implements ChatSubject {
     /** usuarioId -> cantidad de ventanas abiertas de ese usuario. */
     private final Map<Integer, Integer> sesiones = new ConcurrentHashMap<>();
 
+    
+    public static final int MAX_PROHIBIDAS = 3;
+    
+    /** "remitenteId->destinatarioId" -> palabras prohibidas acumuladas. */
+    private final Map<String, Integer> contadorProhibidas = new ConcurrentHashMap<>();
+
     public ChatFacade(DAOFactory factory) {
         this.usuarioDAO = factory.getUsuarioDAO();
         this.mensajeDAO = factory.getMensajeDAO();
@@ -114,6 +120,26 @@ public class ChatFacade implements ChatSubject {
     public Mensaje enviarTexto(Usuario yo, Usuario otro, String texto, ProcesadorTexto estrategia) {
         String procesado = estrategia.procesar(texto);
         return guardarYNotificar(MensajeFactory.crear(TipoMensaje.TEXTO, yo.getId(), otro.getId(), procesado));
+    }
+
+    // ---------------------------------------------------------------- palabras prohibidas
+
+    private static String clave(Usuario yo, Usuario otro) {
+        return yo.getId() + "->" + otro.getId();
+    }
+
+    /** Suma {@code cantidad} palabras prohibidas al contador de yo->otro y devuelve el total. */
+    public int registrarProhibidas(Usuario yo, Usuario otro, int cantidad) {
+        return contadorProhibidas.merge(clave(yo, otro), cantidad, Integer::sum);
+    }
+
+    public int prohibidasAcumuladas(Usuario yo, Usuario otro) {
+        return contadorProhibidas.getOrDefault(clave(yo, otro), 0);
+    }
+
+
+    public boolean estaBloqueado(Usuario yo, Usuario otro) {
+        return prohibidasAcumuladas(yo, otro) >= MAX_PROHIBIDAS;
     }
 
     public Mensaje enviarZumbido(Usuario yo, Usuario otro) {

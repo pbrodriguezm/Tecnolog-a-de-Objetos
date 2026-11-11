@@ -27,19 +27,33 @@ public class ChatControlador {
         if (texto == null || texto.isBlank()) {
             return;
         }
-        
+        if (facade.estaBloqueado(yo, contacto)) {
+            vista.mostrarError("Ya no puedes enviar mensajes a " + contacto.getNombre()
+                    + ": llegaste a " + ChatFacade.MAX_PROHIBIDAS + " palabras prohibidas.");
+            return;
+        }
+
         List<String> prohibidas = estrategia.detectarProhibidas(texto);
         if (!prohibidas.isEmpty()) {
-            vista.mostrarError("EsTe. emensaje contiene palabras prohibidas: " + String.join(", ", prohibidas)
-                    + "\nSe enviará censurado.");
+            int total = facade.registrarProhibidas(yo, contacto, prohibidas.size());
+            if (total >= ChatFacade.MAX_PROHIBIDAS) {
+                vista.mostrarError("usaste " + total + " palabras prohibidas (" + String.join(", ", prohibidas)
+                        + ").\nestas baneado con  " + contacto.getNombre() + ".");
+                vista.limpiarEntrada();
+                return;
+            }
+            vista.mostrarError("mensaje con palabras groseras: " + String.join(", ", prohibidas)
+                    + "\n(" + total + " de " + ChatFacade.MAX_PROHIBIDAS + ")");
         }
-        
+
         facade.enviarTexto(yo, contacto, texto, estrategia);
         vista.limpiarEntrada();
     }
 
     public void zumbido(Usuario contacto) {
-        if (contacto != null) {
+        if (contacto != null && facade.estaBloqueado(yo, contacto)) {
+            vista.mostrarError("Ya no puedes enviar mensajes a " + contacto.getNombre() + ".");
+        } else if (contacto != null) {
             facade.enviarZumbido(yo, contacto);
         }
     }
